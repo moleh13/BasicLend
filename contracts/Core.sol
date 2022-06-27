@@ -17,6 +17,7 @@ contract Core {
     mapping (address => uint) public lendedAmount;
     mapping (address => uint) public lendedhAmount;
     mapping (address => uint) public borrowedAmount;
+    mapping (address => uint) public borrowedhAmount;
     mapping (address => uint) public exchangeRates;
     mapping (address => uint) public utilizations;
     mapping (address => uint) public borrowMultiplier;
@@ -36,7 +37,10 @@ contract Core {
         exchangeRates[DAI] = 1e18;
         lendedAmount[WETH] = 1;
         lendedhAmount[WETH] = 1;
-        borrowedAmount[WETH] = 1e18;
+        borrowedAmount[WETH] = 1;
+        lendedAmount[DAI] = 1;
+        lendedhAmount[DAI] = 1;
+        borrowedAmount[DAI] = 1;
         lastUpdatedExchangeRate = block.timestamp;
         lastUpdatedBorrowMultiplier = block.timestamp;
     }
@@ -73,6 +77,22 @@ contract Core {
         updateUtilization(_market);
     }
 
+    /* ======================== BORROWING ======================== */
+
+    function borrow(address _market, uint _amount) public {
+        updateExchangeRate(_market);
+
+        require(_amount * 1e18 <= (lendedhAmount[_market] * exchangeRates[_market]) / 1e18);
+
+        borrowedhAmountByUsers[msg.sender][_market] += (_amount * 1e36) / exchangeRates[_market];
+        borrowedAmount[_market] += _amount * 1e18;
+        borrowedhAmount[_market] += (_amount * 1e36) / exchangeRates[_market];
+
+        IERC20(_market).transfer(msg.sender, _amount * 1e18);
+
+        updateUtilization(_market);
+    }
+
     /* ======================== CALCULATE PARTS ======================== */
     
     function calculateLendedAmountByUser(address _user, address _market) public view returns (uint) {
@@ -88,6 +108,7 @@ contract Core {
         updateUtilization(_market);
 
         lendedAmount[_market] = (lendedhAmount[_market] * exchangeRates[_market]) / 1e18;
+        borrowedAmount[_market] = (borrowedhAmount[_market] * exchangeRates[_market]) / 1e18;
         lastUpdatedExchangeRate = block.timestamp;
 
         emit Log(_market, exchangeRates[_market]);
