@@ -5,14 +5,14 @@ import "./IERC20.sol";
 
 contract Core {
 
-    /* ---------------------------- VARIABLES ---------------------------- */
+    /* ======================== VARIABLES ======================== */
 
     address public WETH;
     address public DAI;
     uint public lastUpdatedExchangeRate;
     uint public lastUpdatedBorrowMultiplier;
 
-    /* ---------------------------- MAPPING ---------------------------- */
+    /* ======================== MAPPING ======================== */
 
     mapping (address => uint) public lendedAmount;
     mapping (address => uint) public lendedhAmount;
@@ -23,11 +23,11 @@ contract Core {
     mapping (address => mapping (address => uint)) public borrowedhAmountByUsers;
     mapping (address => mapping (address => uint)) public hAmountsByUsers;
 
-    /* ---------------------------- EVENTS ---------------------------- */
+    /* ======================== EVENTS ======================== */
 
     event Log(address addr, uint amount);
 
-    /* ---------------------------- CONSTRUCTOR ---------------------------- */
+    /* ======================== CONSTRUCTOR ======================== */
 
     constructor(address _WETH, address _DAI) {
         WETH = _WETH;
@@ -41,7 +41,7 @@ contract Core {
         lastUpdatedBorrowMultiplier = block.timestamp;
     }
     
-    /* ---------------------------- LENDING ---------------------------- */
+    /* ======================== LENDING ======================== */
 
     function lend(address _market, uint _amount) external {
         updateExchangeRate(_market);
@@ -57,7 +57,7 @@ contract Core {
         emit Log(msg.sender, hAmountsByUsers[msg.sender][_market] * exchangeRates[_market] / 1e18);
     }
 
-    /* ---------------------------- REDEEMING ---------------------------- */
+    /* ======================== REDEEMING ======================== */
 
     function redeem(address _market, uint _amount) external {
         updateExchangeRate(_market);
@@ -73,13 +73,13 @@ contract Core {
         updateUtilization(_market);
     }
 
-    /* ---------------------------- CALCULATE PARTS ---------------------------- */
+    /* ======================== CALCULATE PARTS ======================== */
     
     function calculateLendedAmountByUser(address _user, address _market) public view returns (uint) {
         return hAmountsByUsers[_user][_market] * exchangeRates[_market] / 1e18;
     }
 
-    /* ---------------------------- UPDATE PARTS ---------------------------- */
+    /* ======================== UPDATE PARTS ======================== */
 
     function updateExchangeRate(address _market) public {
         exchangeRates[_market] += (block.timestamp - lastUpdatedExchangeRate) * 
