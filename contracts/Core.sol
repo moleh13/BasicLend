@@ -11,12 +11,11 @@ contract Core {
     address public DAI;
     uint public lastUpdatedExchangeRate;
     uint public lastUpdatedBorrowMultiplier;
-    uint public year = 365 * 24 * 60 * 60;
-    uint public passedTime = block.timestamp - lastUpdatedExchangeRate;
 
     /* ---------------------------- MAPPING ---------------------------- */
 
     mapping (address => uint) public lendedAmount;
+    mapping (address => uint) public lendedhAmount;
     mapping (address => uint) public borrowedAmount;
     mapping (address => uint) public exchangeRates;
     mapping (address => uint) public utilizations;
@@ -36,6 +35,7 @@ contract Core {
         exchangeRates[WETH] = 1e18;
         exchangeRates[DAI] = 1e18;
         lendedAmount[WETH] = 1;
+        lendedhAmount[WETH] = 1;
         borrowedAmount[WETH] = 1e18;
         lastUpdatedExchangeRate = block.timestamp;
         lastUpdatedBorrowMultiplier = block.timestamp;
@@ -46,24 +46,48 @@ contract Core {
     function lend(address _market, uint _amount) external {
         updateExchangeRate(_market);
 
+        hAmountsByUsers[msg.sender][_market] += (_amount * 1e36) / (exchangeRates[_market]);
         lendedAmount[_market] += _amount * 1e18;
+        lendedhAmount[_market] += (_amount * 1e36) / exchangeRates[_market];
 
         IERC20(_market).transferFrom(msg.sender, address(this), _amount * 1e18);
-
-        hAmountsByUsers[msg.sender][_market] += (_amount * 1e36) / (exchangeRates[_market]);
 
         updateUtilization(_market);
 
         emit Log(msg.sender, hAmountsByUsers[msg.sender][_market] * exchangeRates[_market] / 1e18);
     }
 
+    /* ---------------------------- REDEEMING ---------------------------- */
+
+    function redeem(address _market, uint _amount) external {
+        updateExchangeRate(_market);
+        
+        require(calculateLendedAmountByUser(msg.sender, _market) >= _amount * 1e18);
+
+        hAmountsByUsers[msg.sender][_market] -= (_amount * 1e36) / exchangeRates[_market];
+        lendedAmount[_market] -= _amount * 1e18;
+        lendedhAmount[_market] -= (_amount * 1e36) / exchangeRates[_market];
+
+        IERC20(_market).transfer(msg.sender, _amount * 1e18);
+
+        updateUtilization(_market);
+    }
+
+    /* ---------------------------- CALCULATE PARTS ---------------------------- */
+    
+    function calculateLendedAmountByUser(address _user, address _market) public view returns (uint) {
+        return hAmountsByUsers[_user][_market] * exchangeRates[_market] / 1e18;
+    }
+
     /* ---------------------------- UPDATE PARTS ---------------------------- */
 
     function updateExchangeRate(address _market) public {
-        exchangeRates[_market] += (passedTime) * (utilizations[_market]) / (year) * exchangeRates[_market] / 1e18;
+        exchangeRates[_market] += (block.timestamp - lastUpdatedExchangeRate) * 
+        (utilizations[_market]) / (365 * 24 * 60 * 60) * exchangeRates[_market] / 1e18;
         
         updateUtilization(_market);
 
+        lendedAmount[_market] = (lendedhAmount[_market] * exchangeRates[_market]) / 1e18;
         lastUpdatedExchangeRate = block.timestamp;
 
         emit Log(_market, exchangeRates[_market]);
