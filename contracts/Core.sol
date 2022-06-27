@@ -42,7 +42,7 @@ contract Core {
         lendedAmount[_market] += _amount;
         IERC20(_market).approve(address(this), _amount);
         IERC20(_market).transferFrom(msg.sender, address(this), _amount);
-        hAmountsByUsers[msg.sender][_market] += _amount / exchangeRates[_market] * 1e18;
+        hAmountsByUsers[msg.sender][_market] += (_amount * 1e36) / exchangeRates[_market] ;
         updateUtilization(_market);
     }
 
