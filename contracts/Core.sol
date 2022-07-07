@@ -7,10 +7,12 @@ contract Core {
 
     /* ======================== VARIABLES ======================== */
 
+    address owner;
     address public WETH;
     address public DAI;
     uint public lastUpdatedExchangeRate;
     uint public lastUpdatedBorrowMultiplier;
+    address[] public markets;
 
     /* ======================== MAPPING ======================== */
 
@@ -21,6 +23,9 @@ contract Core {
     mapping (address => uint) public exchangeRates;
     mapping (address => uint) public utilizations;
     mapping (address => uint) public borrowMultiplier;
+    mapping (address => uint) public collateralRatioOfMarket;
+    mapping (address => uint) public collateralAmountOfUser;
+    mapping (address => uint) public priceOf; // for test. pricefeed will be used
     mapping (address => mapping (address => uint)) public borrowedhAmountByUsers;
     mapping (address => mapping (address => uint)) public hAmountsByUsers;
 
@@ -43,6 +48,12 @@ contract Core {
         borrowedAmount[DAI] = 1;
         lastUpdatedExchangeRate = block.timestamp;
         lastUpdatedBorrowMultiplier = block.timestamp;
+        collateralRatioOfMarket[WETH] = 60 * 1e18;
+        collateralRatioOfMarket[DAI] = 60 * 1e18;
+        owner = msg.sender;
+        markets = [WETH, DAI];
+        priceOf[WETH] = 1000 * 1e18;
+        priceOf[DAI] = 1 * 1e18;
     }
     
     /* ======================== LENDING ======================== */
@@ -53,6 +64,7 @@ contract Core {
         hAmountsByUsers[msg.sender][_market] += (_amount * 1e36) / (exchangeRates[_market]);
         lendedAmount[_market] += _amount * 1e18;
         lendedhAmount[_market] += (_amount * 1e36) / exchangeRates[_market];
+        collateralAmountOfUser[msg.sender] += _amount * collateralRatioOfMarket[_market] * priceOf[_market]; 
 
         IERC20(_market).transferFrom(msg.sender, address(this), _amount * 1e18);
 
@@ -93,10 +105,14 @@ contract Core {
         updateUtilization(_market);
     }
 
-    /* ======================== CALCULATE PARTS ======================== */
+    /* ======================== VIEW ======================== */
     
     function calculateLendedAmountByUser(address _user, address _market) public view returns (uint) {
         return hAmountsByUsers[_user][_market] * exchangeRates[_market] / 1e18;
+    }
+
+    function _collateralAmountOfUser() public view returns (uint) {
+        return collateralAmountOfUser[msg.sender];
     }
 
     /* ======================== UPDATE PARTS ======================== */
@@ -120,6 +136,31 @@ contract Core {
         emit Log(_market, utilizations[_market]);
     }
 
+    function updateCollateralAmountOfUser(address _user) public {
+        collateralAmountOfUser[_user] = 0;
+
+        for (uint i = 0; i < markets.length; i++) {
+            updateExchangeRate(markets[i]);
+            collateralAmountOfUser[_user] += 
+            (hAmountsByUsers[msg.sender][markets[i]] * exchangeRates[markets[i]] * priceOf[markets[i]]
+            * collateralRatioOfMarket[markets[i]]) / 1e56;
+        }
+    }
+
+    /* ======================== OWNER ======================== */
+
+    function setCollateralRatio(address _market, uint _ratio) external {
+        require(msg.sender == owner);
+
+        collateralRatioOfMarket[_market] = _ratio * 1e18;
+    }
+
+    function addMarket(address _market) external {
+        require(msg.sender == owner);
+
+        markets.push(_market);
+    }
+
 }
 
-// 0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8, 0xd9145CCE52D386f254917e481eB44e9943F39138
+// 0xf8e81D47203A594245E36C48e151709F0C19fBe8, 0xD7ACd2a9FD159E69Bb102A1ca21C9a3e3A5F771B
